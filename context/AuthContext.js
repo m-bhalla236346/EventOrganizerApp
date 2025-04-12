@@ -1,6 +1,13 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '../firebase';  // Make sure this is your firebase configuration
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  fetchSignInMethodsForEmail
+} from 'firebase/auth';
+import { auth } from '../firebase';
 
 export const AuthContext = createContext();
 
@@ -11,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false); // Stop loading after auth state is checked
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -27,6 +34,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signUp = async (email, password) => {
+    try {
+      // Check if email is already in use
+      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+      if (signInMethods.length > 0) {
+        alert('Email is already in use.');
+        return;
+      }
+
+      // If email is not already in use, proceed to create the user
+      await createUserWithEmailAndPassword(auth, email, password);
+      console.log('User signed up successfully.');
+      return 'success';  // Indicate success
+    } catch (error) {
+      console.error('Error during sign up: ', error.message);
+      alert('Error: ' + error.message);
+      return 'error';  // Indicate error
+    }
+  };
+
   const logout = () => {
     signOut(auth)
       .then(() => console.log('User signed out successfully.'))
@@ -34,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, signIn, logout, loading }}>
+    <AuthContext.Provider value={{ user, signIn, signUp, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

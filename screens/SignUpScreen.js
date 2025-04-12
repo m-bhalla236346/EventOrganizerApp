@@ -12,6 +12,7 @@ import {
 import { AuthContext } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { getAuth, createUserWithEmailAndPassword, fetchSignInMethodsForEmail } from 'firebase/auth'; // Import Firebase Auth methods
 
 const SignUpScreen = ({ navigation }) => {
   const { signUp } = useContext(AuthContext);
@@ -22,6 +23,7 @@ const SignUpScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isSignUpSuccessful, setIsSignUpSuccessful] = useState(false);
 
   const validateEmail = (email) => /^\S+@\S+\.\S+$/.test(email);
   const getPasswordStrength = (password) => {
@@ -39,14 +41,39 @@ const SignUpScreen = ({ navigation }) => {
     if (!password) newErrors.password = 'Password is required.';
     else if (password.length < 6) newErrors.password = 'Minimum 6 characters.';
     if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match.';
-
+  
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-
+  
     try {
-      await signUp(email, password);
+      const auth = getAuth(); // Initialize Firebase Auth instance
+
+      // Check if email is already registered in Firebase
+      const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+      if (signInMethods.length > 0) {
+        // Email is already in use
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          email: 'This email is already registered. Please log in.'
+        }));
+        return; // Don't proceed with sign up
+      }
+  
+      // Proceed with sign up if email is not already in use
+      await createUserWithEmailAndPassword(auth, email, password);
+      setIsSignUpSuccessful(true);
+      Alert.alert('Congratulations! You have signed up successfully!');
+  
     } catch (error) {
-      Alert.alert('Signup Failed', error.message);
+      if (error.code === 'auth/email-already-in-use') {
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          email: 'This email is already registered. Please log in.'
+        }));
+      } else {
+        Alert.alert('Signup Failed', error.message);
+      }
     }
   };
 
@@ -153,7 +180,15 @@ const SignUpScreen = ({ navigation }) => {
 
             <Text style={styles.footerText}>
               Already have an account?{' '}
-              <Text style={styles.link} onPress={() => navigation.navigate('SignIn')}>
+              <Text
+                style={styles.link}
+                onPress={() => {
+                  if (isSignUpSuccessful) {
+                    // Navigate only when the signup is successful
+                    navigation.navigate('SignIn');
+                  }
+                }}
+              >
                 Sign In
               </Text>
             </Text>
@@ -253,27 +288,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#a000c8',
     paddingVertical: 14,
     borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    marginTop: 10,
   },
   buttonText: {
+    textAlign: 'center',
     color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
-    fontSize: 17,
   },
   footerText: {
-    textAlign: 'center',
     marginTop: 16,
-    fontSize: 15,
-    color: '#333',
+    textAlign: 'center',
+    fontSize: 14,
   },
   link: {
-    color: '#a000c8',
+    color: '#4b0082',
     fontWeight: 'bold',
+  },
+  successMessage: {
+    marginTop: 12,
+    color: 'green',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 
